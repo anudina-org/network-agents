@@ -33,6 +33,7 @@ jobs:
       with:
         context: .
         push: true
+        no-cache: true
         tags: ${{ env.IMAGE_NAME }}:${{ env.TAG }}
 
     - name: Login to OpenShift
@@ -54,6 +55,11 @@ jobs:
         oc set image deployment/network-agent-ui \
           network-agent-ui=${{ env.IMAGE_NAME }}:${{ env.TAG }} \
           -n ${{ env.OC_PROJECT }}
+
+    - name: Force rollout restart
+      run: |
+        oc rollout restart deployment/network-agent-server -n ${{ env.OC_PROJECT }}
+        oc rollout restart deployment/network-agent-ui -n ${{ env.OC_PROJECT }}
 
     - name: Wait for rollouts
       run: |
