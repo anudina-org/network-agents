@@ -22,9 +22,8 @@ st.title("Network Supervisor Agent")
 st.caption("UAT · Ask about your network sites")
 
 if "history" not in st.session_state:
-    st.session_state.history = []  # list of {"role": "user"|"assistant", "content": str}
+    st.session_state.history = []
 
-# Replay chat history
 for msg in st.session_state.history:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -38,7 +37,7 @@ if prompt := st.chat_input("Ask about your network sites..."):
             resp = requests.post(
                 f"{AGENT_API_URL}/chat",
                 json={"message": prompt, "history": st.session_state.history},
-                timeout=120,
+                timeout=600,
             )
             resp.raise_for_status()
             data = resp.json()

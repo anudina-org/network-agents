@@ -7,7 +7,6 @@ from langgraph.types import Command
 from site_agent import _make_llm, create_site_agent
 
 MEMBERS = ["site-agent"]
-OPTIONS = MEMBERS + ["FINISH"]
 
 SUPERVISOR_PROMPT = (
     "You are a network supervisor agent.\n"
@@ -43,7 +42,7 @@ def build_graph():
         # Only check messages produced AFTER the current user message
         if any(getattr(m, "name", None) == "site-agent" for m in all_msgs[last_user_idx + 1:]):
             return Command(goto=END)
-        messages = [{"role": "system", "content": SUPERVISOR_PROMPT}] + all_msgs
+        messages = [{"role": "system", "content": SUPERVISOR_PROMPT}] + list(all_msgs[last_user_idx:])
         response = llm.invoke(messages)
         next_node = _parse_next(response.content)
         if next_node == "FINISH":
@@ -53,8 +52,14 @@ def build_graph():
     def site_agent_node(state: MessagesState) -> Command[Literal["supervisor"]]:
         result = site_agent.invoke(state, config={"recursion_limit": 6})
         last = result["messages"][-1]
+        # Gemini 2.5 returns content as a list of blocks (text + thinking).
+        # Extract only the text blocks; fallback to any non-empty field.
+        raw = last.content
+        if isinstance(raw, list):
+            text = "".join(b.get("text", "") for b in raw if isinstance(b, dict) and b.get("type") == "text")
+            raw = text or "".join(b.get("text", b.get("thinking", "")) for b in raw if isinstance(b, dict))
         return Command(
-            update={"messages": [HumanMessage(content=last.content, name="site-agent")]},
+            update={"messages": [HumanMessage(content=str(raw), name="site-agent")]},
             goto="supervisor",
         )
 

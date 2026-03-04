@@ -1,0 +1,61 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: [self-hosted, np-runner]
+    env:
+      IMAGE_NAME: docker.io/anandms2026/network-agents
+      TAG: uat
+      OC_PROJECT: ai-agentic
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Fetch latest files (force)
+      run: |
+        git fetch --force
+        git checkout --force
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_HUB_USERNAME }}
+        password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+    - name: Build and push image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: true
+        tags: ${{ env.IMAGE_NAME }}:${{ env.TAG }}
+
+    - name: Login to OpenShift
+      run: |
+        oc login ${{ secrets.OCP_API_URL }} \
+           --token=${{ secrets.OCP_TOKEN }} \
+           --insecure-skip-tls-verify
+        oc project ${{ env.OC_PROJECT }}
+
+    - name: Apply manifests
+      run: |
+        oc apply -f dev-deploy.yaml -n ${{ env.OC_PROJECT }}
+
+    - name: Update images
+      run: |
+        oc set image deployment/network-agent-server \
+          network-agent-server=${{ env.IMAGE_NAME }}:${{ env.TAG }} \
+          -n ${{ env.OC_PROJECT }}
+        oc set image deployment/network-agent-ui \
+          network-agent-ui=${{ env.IMAGE_NAME }}:${{ env.TAG }} \
+          -n ${{ env.OC_PROJECT }}
+
+    - name: Wait for rollouts
+      run: |
+        oc rollout status deployment/network-agent-server --timeout=2m -n ${{ env.OC_PROJECT }}
+        oc rollout status deployment/network-agent-ui --timeout=2m -n ${{ env.OC_PROJECT }}
