@@ -68,6 +68,7 @@ spec:
       containers:
       - name: network-agent-ui
         image: docker.io/anandms2026/network-agents:uat
+        imagePullPolicy: Always
         command: ["streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
         ports:
         - containerPort: 8501
@@ -89,3 +90,37 @@ spec:
   ports:
   - port: 8501
     targetPort: 8501
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: network-agent-ui
+  namespace: ai-agentic
+  labels:
+    app: network-agent-ui
+spec:
+  host: network-agent-ui.ocp.anudina.com
+  port:
+    targetPort: 8501
+  to:
+    kind: Service
+    name: network-agent-ui
+    weight: 100
+  wildcardPolicy: None
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: network-agent-server
+  namespace: ai-agentic
+  labels:
+    app: network-agent-server
+spec:
+  host: network-agent-server.ocp.anudina.com
+  port:
+    targetPort: 8000
+  to:
+    kind: Service
+    name: network-agent-server
+    weight: 100
+  wildcardPolicy: None
